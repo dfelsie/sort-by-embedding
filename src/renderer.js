@@ -10,6 +10,7 @@ const gridContainer   = document.getElementById('thumbnail-grid');
 
 // Modal elements
 const promptModal = document.getElementById('promptModal');
+const promptModalContent = document.getElementById('promptModalContent');
 const promptInput = document.getElementById('promptInput');
 const promptOk    = document.getElementById('promptOk');
 const promptCancel = document.getElementById('promptCancel');
@@ -24,10 +25,12 @@ function showPrompt() {
   return new Promise((resolve) => {
     // Prevent multiple modals
     if (isModalOpen) {
+      console.log('Modal already open, ignoring');
       return;
     }
 
     isModalOpen = true;
+    console.log('showPrompt called');
 
     // Get the original input element and its parent
     const originalInput = document.getElementById('promptInput');
@@ -41,6 +44,11 @@ function showPrompt() {
     newInput.placeholder = originalInput.placeholder || '';
     newInput.value = '';
 
+    // Add visual styling to show focus states
+    newInput.style.border = '2px solid #007acc';
+    newInput.style.outline = 'none';
+    //promptModalContent.style.border = '3px solid #ff8c00';
+
     // Replace the old input with the new one
     inputParent.replaceChild(newInput, originalInput);
 
@@ -51,12 +59,14 @@ function showPrompt() {
     setTimeout(() => {
       newInput.focus();
       newInput.select(); // Also try to select
+      console.log('New input focused and selected');
     }, 150);
 
     function globalKeyHandler(e) {
       // Only handle if modal is open and new input is focused
       if (!isModalOpen || document.activeElement !== newInput) return;
 
+      console.log('Global key pressed:', e.key);
 
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -70,9 +80,11 @@ function showPrompt() {
         // Handle single character input manually
         e.preventDefault();
         newInput.value += e.key;
+        console.log('Manually added character, new value:', newInput.value);
       } else if (e.key === 'Backspace') {
         e.preventDefault();
         newInput.value = newInput.value.slice(0, -1);
+        console.log('Manually removed character, new value:', newInput.value);
       }
     }
 
@@ -88,11 +100,14 @@ function showPrompt() {
     }
 
     function cleanup() {
+      console.log('Cleaning up');
       isModalOpen = false;
       document.removeEventListener('keydown', globalKeyHandler);
       promptOk.removeEventListener('click', handleOk);
       promptCancel.removeEventListener('click', handleCancel);
       promptModal.style.display = 'none';
+      // Remove the styling when cleaning up
+      //promptModalContent.style.border = '';
     }
 
     // Add listeners
