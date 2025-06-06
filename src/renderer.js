@@ -1,4 +1,5 @@
 // src/renderer.js
+
 let currentFolder = null;
 let currentImagePaths = [];
 
@@ -12,59 +13,94 @@ const promptModal = document.getElementById('promptModal');
 const promptInput = document.getElementById('promptInput');
 const promptOk    = document.getElementById('promptOk');
 const promptCancel = document.getElementById('promptCancel');
-
+let isModalOpen = false;
 /**
  * Returns a Promise that resolves to the user’s input string
  * when they click OK, or null if they click Cancel.
+ *
+ * Doesn't work on 2nd try, why?
  */
 function showPrompt() {
   return new Promise((resolve) => {
-    // Show the modal
-    promptInput.value = '';           // clear previous text
-    promptModal.style.display = 'flex';
-    promptInput.focus();
-
-    // Handler for OK
-    function onOk() {
-      cleanup();
-      resolve(promptInput.value.trim());
+    // Prevent multiple modals
+    if (isModalOpen) {
+      return;
     }
 
-    // Handler for Cancel (or clicking outside? You could add backdrop clicks if you want)
-    function onCancel() {
+    isModalOpen = true;
+
+    // Get the original input element and its parent
+    const originalInput = document.getElementById('promptInput');
+    const inputParent = originalInput.parentNode;
+
+    // Create a completely new input element
+    const newInput = document.createElement('input');
+    newInput.id = 'promptInput';
+    newInput.type = 'text';
+    newInput.className = originalInput.className;
+    newInput.placeholder = originalInput.placeholder || '';
+    newInput.value = '';
+
+    // Replace the old input with the new one
+    inputParent.replaceChild(newInput, originalInput);
+
+    // Show modal
+    promptModal.style.display = 'flex';
+
+    // Focus the new input
+    setTimeout(() => {
+      newInput.focus();
+      newInput.select(); // Also try to select
+    }, 150);
+
+    function globalKeyHandler(e) {
+      // Only handle if modal is open and new input is focused
+      if (!isModalOpen || document.activeElement !== newInput) return;
+
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleOk();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCancel();
+      } else if (e.key.length === 1) {
+        // Handle single character input manually
+        e.preventDefault();
+        newInput.value += e.key;
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        newInput.value = newInput.value.slice(0, -1);
+      }
+    }
+
+    function handleOk() {
+      const value = newInput.value.trim();
+      cleanup();
+      resolve(value);
+    }
+
+    function handleCancel() {
       cleanup();
       resolve(null);
     }
 
-    // When the user clicks “OK”
-    promptOk.addEventListener('click', onOk);
-
-    // When the user clicks “Cancel”
-    promptCancel.addEventListener('click', onCancel);
-
-    // If they press Enter while focused on the input, treat as OK
-    function onKeyDown(e) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        onOk();
-      } else if (e.key === 'Escape') {
-        // ESC ⇒ cancel
-        e.preventDefault();
-        onCancel();
-      }
-    }
-    promptInput.addEventListener('keydown', onKeyDown);
-
-    // Remove listeners and hide modal
     function cleanup() {
-      promptOk.removeEventListener('click', onOk);
-      promptCancel.removeEventListener('click', onCancel);
-      promptInput.removeEventListener('keydown', onKeyDown);
+      isModalOpen = false;
+      document.removeEventListener('keydown', globalKeyHandler);
+      promptOk.removeEventListener('click', handleOk);
+      promptCancel.removeEventListener('click', handleCancel);
       promptModal.style.display = 'none';
     }
+
+    // Add listeners
+    document.addEventListener('keydown', globalKeyHandler);
+    promptOk.addEventListener('click', handleOk);
+    promptCancel.addEventListener('click', handleCancel);
   });
 }
-
 /**
  * Render the thumbnails in the given array of absolute image paths.
  * Clears the grid and re-populates in-order.
@@ -135,6 +171,7 @@ btnSortPrompt.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
 
   // Show our custom prompt modal instead of window.prompt()
+
   const promptText = await showPrompt();
   if (!promptText) {
     // User clicked “Cancel” or left it blank
