@@ -108,6 +108,26 @@ btnChooseFolder.addEventListener('click', async () => {
   renderThumbnails(currentImagePaths);
 });
 
+function normalizeSlashes(str) {
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (c === '/') {
+      const prev = i > 0 ? str[i - 1] : '';
+      const next = i < str.length - 1 ? str[i + 1] : '';
+      // only replace if neither neighbor is "\" or "/"
+      if (prev !== '\\' && prev !== '/' && next !== '\\' && next !== '/') {
+        out += '\\';
+      } else {
+        out += '/';
+      }
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+
 /** “Sort by Prompt” button handler */
 // src/renderer.js
 
@@ -150,7 +170,12 @@ const MAX_NAME_LEN = 100; // maximum length for the “name only” portion
 
 const renamedPaths = sortedPaths.map((oldPath, index) => {
   // 1) Normalize any forward‐slashes to backslashes
-  const normalized = oldPath.replace(/\//g, '\\');
+const normalized1 = oldPath.includes('/')
+  ? oldPath.replace(/\//g, '\\')
+  //? oldPath.replace(/\//g, '\\')
+  : oldPath;
+
+  const normalized = normalized1.replace(/\\\\\\\\/g, '\\');
 
   // 2) Find the last backslash
   const lastSlash = normalized.lastIndexOf('\\');

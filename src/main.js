@@ -86,9 +86,11 @@ ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
    *   - sortedPaths is an array of absolute paths in desired order.
    * We will rename each file to "NN_originalName.ext", where NN is 01, 02, … (one-based).
    * If the "name" part (without extension) is extremely long, we truncate it to at most 100 characters.
+   *
+   * If the target name already exists, we do NOT append "_dup"—we simply skip renaming that file.
    */
   try {
-    const MAX_NAME_LEN = 100; // maximum length for “name only” portion (excluding extension)
+    const MAX_NAME_LEN = 100; // maximum length for “name only” portion
 
     for (let i = 0; i < sortedPaths.length; i++) {
       const oldFullPath = sortedPaths[i];
@@ -115,30 +117,21 @@ ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
       // 4) Build the new base: zero-padded prefix + "_" + truncatedName + ext
       const prefix = String(i + 1).padStart(2, '0');   // "01", "02", …
       const newBase = `${prefix}_${truncatedName}${ext}`;
-
       const newFullPath = path.join(dir, newBase);
 
-      // 5) Only rename if the name actually changes
+      // 5) Only attempt rename if oldFullPath differs from newFullPath
       if (oldFullPath !== newFullPath) {
         if (fs.existsSync(newFullPath)) {
-          // If that name already exists, append "_dup" (with incrementing suffix if needed)
-          let counter = 1;
-          const baseNoExt = `${prefix}_${truncatedName}`; // e.g. "03_VeryLong…"
-          let candidate = `${baseNoExt}_dup${ext}`;
-          let finalFull = path.join(dir, candidate);
-          while (fs.existsSync(finalFull)) {
-            counter++;
-            candidate = `${baseNoExt}_dup${counter}${ext}`;
-            finalFull = path.join(dir, candidate);
-          }
-          fs.renameSync(oldFullPath, finalFull);
-          sortedPaths[i] = finalFull;
+          // — Skip renaming entirely if target already exists.
+          //   We leave sortedPaths[i] pointing to newFullPath (the existing file).
+          sortedPaths[i] = newFullPath;
         } else {
+          // — Safe to rename
           fs.renameSync(oldFullPath, newFullPath);
           sortedPaths[i] = newFullPath;
         }
       } else {
-        // Even if oldFullPath === newFullPath, update sortedPaths[i] to ensure consistency
+        // oldFullPath === newFullPath, no change needed
         sortedPaths[i] = newFullPath;
       }
     }
