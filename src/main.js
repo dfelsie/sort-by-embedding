@@ -71,7 +71,6 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
       try {
         // → Parse the JSON array directly from stdoutData
         const sortedPaths = JSON.parse(stdoutData);
-        console.log(sortedPaths,"sorPa ", stdoutData)
         resolve(sortedPaths);
       } catch (err) {
         console.error('[main] Failed to parse JSON from Python:', err, stdoutData);
@@ -80,5 +79,73 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
     });
   });
 });
-;
+ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
+  /**
+   * We assume:
+   *   - folderPath is the directory containing all images.
+   *   - sortedPaths is an array of absolute paths in desired order.
+   * We will rename each file to "NN_originalName.ext", where NN is 01, 02, … (one-based).
+   * If the "name" part (without extension) is extremely long, we truncate it to at most 100 characters.
+   */
+  try {
+    const MAX_NAME_LEN = 100; // maximum length for “name only” portion (excluding extension)
 
+    for (let i = 0; i < sortedPaths.length; i++) {
+      const oldFullPath = sortedPaths[i];
+      const dir = path.dirname(oldFullPath);
+      let base = path.basename(oldFullPath); // e.g. "05_ReallyLongName...jpg"
+
+      // 1) Strip any existing numeric prefix "NN_"
+      const prefixMatch = /^(\d+)_/.exec(base);
+      if (prefixMatch) {
+        base = base.substring(prefixMatch[0].length);
+        // e.g. from "05_LongFilename.jpg" → "LongFilename.jpg"
+      }
+
+      // 2) Split off extension
+      const ext = path.extname(base);                // e.g. ".jpg"
+      const nameOnly = base.slice(0, -ext.length);   // e.g. "VeryLongFilename…"
+
+      // 3) Truncate nameOnly if it exceeds MAX_NAME_LEN
+      let truncatedName = nameOnly;
+      if (nameOnly.length > MAX_NAME_LEN) {
+        truncatedName = nameOnly.slice(0, MAX_NAME_LEN);
+      }
+
+      // 4) Build the new base: zero-padded prefix + "_" + truncatedName + ext
+      const prefix = String(i + 1).padStart(2, '0');   // "01", "02", …
+      const newBase = `${prefix}_${truncatedName}${ext}`;
+
+      const newFullPath = path.join(dir, newBase);
+
+      // 5) Only rename if the name actually changes
+      if (oldFullPath !== newFullPath) {
+        if (fs.existsSync(newFullPath)) {
+          // If that name already exists, append "_dup" (with incrementing suffix if needed)
+          let counter = 1;
+          const baseNoExt = `${prefix}_${truncatedName}`; // e.g. "03_VeryLong…"
+          let candidate = `${baseNoExt}_dup${ext}`;
+          let finalFull = path.join(dir, candidate);
+          while (fs.existsSync(finalFull)) {
+            counter++;
+            candidate = `${baseNoExt}_dup${counter}${ext}`;
+            finalFull = path.join(dir, candidate);
+          }
+          fs.renameSync(oldFullPath, finalFull);
+          sortedPaths[i] = finalFull;
+        } else {
+          fs.renameSync(oldFullPath, newFullPath);
+          sortedPaths[i] = newFullPath;
+        }
+      } else {
+        // Even if oldFullPath === newFullPath, update sortedPaths[i] to ensure consistency
+        sortedPaths[i] = newFullPath;
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.error('[main] Error during file renaming:', err);
+    throw err;
+  }
+});

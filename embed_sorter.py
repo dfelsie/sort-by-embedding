@@ -1,6 +1,5 @@
 # embed_sorter.py
 import sys
-print(f"[embed_sorter.py] raw argv:", sys.argv, file=sys.stderr)
 import os
 import json
 import torch

@@ -1,5 +1,4 @@
 // src/renderer.js
-
 let currentFolder = null;
 let currentImagePaths = [];
 
@@ -86,6 +85,7 @@ function renderThumbnails(imagePaths) {
     const div = document.createElement('div');
     div.classList.add('thumb-container');
     const img = document.createElement('img');
+    console.log("absPath: ",absPath)
     img.src = `file://${absPath}`;
     img.alt = '';
     div.appendChild(img);
@@ -109,6 +109,8 @@ btnChooseFolder.addEventListener('click', async () => {
 });
 
 /** “Sort by Prompt” button handler */
+// src/renderer.js
+
 btnSortPrompt.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
 
@@ -128,13 +130,81 @@ btnSortPrompt.addEventListener('click', async () => {
       imagePaths: currentImagePaths,
       prompt: promptText,
     });
+
+    // If Python returned something unexpected, bail out
+    if (!Array.isArray(sortedPaths)) {
+      throw new Error('sortByPrompt did not return an array');
+    }
+
+    // Ask the user: do you want to rename the actual files on disk?
+  const doRename = confirm('Sort complete. Rename files on disk?');
+  if (doRename) {
+    // 1) Ask main to rename on disk
+    await window.electronAPI.applyRenames({
+      folderPath: currentFolder,
+      sortedPaths, // absolute paths in old order
+    });
+
+    // 2) Build the new absolute paths (stripping old numeric prefixes, applying new ones)
+const MAX_NAME_LEN = 100; // maximum length for the “name only” portion
+
+const renamedPaths = sortedPaths.map((oldPath, index) => {
+  // 1) Normalize any forward‐slashes to backslashes
+  const normalized = oldPath.replace(/\//g, '\\');
+
+  // 2) Find the last backslash
+  const lastSlash = normalized.lastIndexOf('\\');
+  const dir = normalized.slice(0, lastSlash + 1);       // e.g. "C:\Users\DLF\Pictures\…\hoToCo\"
+  let filename = normalized.slice(lastSlash + 1);        // e.g. "05_VeryLongName…jpg"
+
+  // 3) Strip any existing "NN_" prefix
+  filename = filename.replace(/^\d+_/, '');             // e.g. "VeryLongName…jpg"
+
+  // 4) Split off extension
+  const dotIndex = filename.lastIndexOf('.');
+  let nameOnly, ext;
+  if (dotIndex >= 0) {
+    nameOnly = filename.slice(0, dotIndex);              // e.g. "VeryLongName…"
+    ext = filename.slice(dotIndex);                       // e.g. ".jpg"
+  } else {
+    nameOnly = filename;                                  // no extension
+    ext = '';
+  }
+
+  // 5) Truncate nameOnly if it exceeds MAX_NAME_LEN
+  if (nameOnly.length > MAX_NAME_LEN) {
+    nameOnly = nameOnly.slice(0, MAX_NAME_LEN);
+  }
+
+  // 6) Build the new filename: zero-padded index + "_" + truncated nameOnly + ext
+  const prefix = String(index + 1).padStart(2, '0');      // "01", "02", ...
+  const newName = `${prefix}_${nameOnly}${ext}`;          // e.g. "03_VeryLongName…jpg"
+
+  // 7) Reassemble: directory + new filename
+  return dir + newName;
+});
+    currentImagePaths = renamedPaths;
+  } else {
     currentImagePaths = sortedPaths;
-    renderThumbnails(currentImagePaths);
-  } catch (err) {
-    console.error('Error during sort:', err,currentImagePaths);
-    alert('An error occurred while sorting. Check the console for details.');
+  }
+
+  // 3) Re-render thumbnails (force-clear then render)
+  console.log('[renderer] Now rendering:', currentImagePaths);
+  renderThumbnails([]);
+  setTimeout(() => renderThumbnails(currentImagePaths), 10);
+
+  btnSortPrompt.innerText = 'Sort by Prompt…';
+  btnSortPrompt.disabled = false;
+}
+catch (err) {
+    console.error('Error during sort:', err);
+    alert('An error occurred while sorting or renaming. Check the console for details.');
   } finally {
     btnSortPrompt.innerText = 'Sort by Prompt…';
     btnSortPrompt.disabled = false;
   }
-});
+}
+
+);
+
+
