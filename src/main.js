@@ -1,8 +1,9 @@
-// src/main.js (edited)
+// src/main.js
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawn } = require('child_process');
 
 let mainWindow;
@@ -26,6 +27,7 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
 // ---------------- IPC ----------------
+
 ipcMain.handle('open-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory']
@@ -44,13 +46,18 @@ ipcMain.handle('open-folder', async () => {
 
 ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt }) => {
   return new Promise((resolve, reject) => {
-    // Build the JSON argument to pass to Python
+    // 1) Build the payload object
     const payload = { folderPath, imagePaths, prompt };
-    const jsonArg = JSON.stringify(payload);
 
-    // Spawn Python process
+    // 2) Write payload to a temp file to avoid command-line length limits
+    const tmpDir = os.tmpdir();
+    const fileName = `embed_payload_${Date.now()}.json`;
+    const tempPath = path.join(tmpDir, fileName);
+    fs.writeFileSync(tempPath, JSON.stringify(payload), 'utf8');
+
+    // 3) Spawn Python process, passing the temp file path instead of raw JSON
     const scriptPath = path.join(__dirname, '..', 'embed_sorter.py');
-    const pyProcess = spawn('python', [scriptPath, jsonArg]);
+    const pyProcess = spawn('python', [scriptPath, tempPath]);
 
     let stdoutData = '';
     let stderrData = '';
@@ -61,7 +68,15 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
     pyProcess.stderr.on('data', (chunk) => {
       stderrData += chunk.toString();
     });
+
     pyProcess.on('close', (code) => {
+      // 4) Clean up the temp file
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (e) {
+        // ignore if delete fails
+      }
+
       if (code !== 0) {
         console.error(`[main] embed_sorter.py exited with code ${code}`);
         console.error(stderrData);
@@ -69,7 +84,7 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
         return;
       }
       try {
-        // → Parse the JSON array directly from stdoutData
+        // Parse the JSON array from stdoutData
         const sortedPaths = JSON.parse(stdoutData);
         resolve(sortedPaths);
       } catch (err) {
@@ -79,6 +94,7 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
     });
   });
 });
+
 ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
   /**
    * We assume:
@@ -122,11 +138,11 @@ ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
       // 5) Only attempt rename if oldFullPath differs from newFullPath
       if (oldFullPath !== newFullPath) {
         if (fs.existsSync(newFullPath)) {
-          // — Skip renaming entirely if target already exists.
-          //   We leave sortedPaths[i] pointing to newFullPath (the existing file).
+          // Skip renaming entirely if target already exists.
+          // We leave sortedPaths[i] pointing to newFullPath (the existing file).
           sortedPaths[i] = newFullPath;
         } else {
-          // — Safe to rename
+          // Safe to rename
           fs.renameSync(oldFullPath, newFullPath);
           sortedPaths[i] = newFullPath;
         }

@@ -1,4 +1,5 @@
 # embed_sorter.py
+
 import sys
 import os
 import json
@@ -50,18 +51,30 @@ def compute_scores(img_embs, text_emb, text_emb_b=None):
         scores = (img_embs @ text_emb.t()).squeeze(1) - (img_embs @ text_emb_b.t()).squeeze(1)
     return scores
 
+def load_payload(arg):
+    """
+    If arg is a path to an existing file, read its contents (JSON) and parse it.
+    Otherwise, parse arg directly as JSON.
+    """
+    if os.path.isfile(arg):
+        with open(arg, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        return json.loads(arg)
+
 def main():
     """
     Usage:
-      python embed_sorter.py '{"folderPath": "...", "imagePaths": [...], "prompt": "hot to cold"}'
+      python embed_sorter.py <payload_or_payload_filepath>
+    Where <payload_or_payload_filepath> is either:
+      - A JSON string: '{"folderPath":"...", "imagePaths":[...], "prompt":"hot to cold"}'
+      - Or a path to a .json file containing that payload.
     Outputs:
       JSON-serialized array of sorted imagePaths, printed to stdout.
     """
-    #print(sys.argv[1])
-    jsonArg=sys.argv[1]
-    json_string = jsonArg.replace('\\', '/')
-    json_string = jsonArg.replace('\\', '/')
-    data = json.loads(json_string)
+    payload_arg = sys.argv[1]
+    data = load_payload(payload_arg)
+
     image_paths = data["imagePaths"]
     prompt = data["prompt"].strip()
 
