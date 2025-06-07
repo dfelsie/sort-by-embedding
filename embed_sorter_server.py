@@ -46,7 +46,7 @@ DEVICE = None
 async def startup_event():
     global CLIP_MODEL, PREPROCESSOR, DEVICE
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    CLIP_MODEL, _, PREPROCESSOR = load_clip_model()
+    CLIP_MODEL,  PREPROCESSOR = load_clip_model()
     CLIP_MODEL.to(DEVICE)
     print(f"[server] Loaded CLIP model on {DEVICE}")
 

@@ -3,8 +3,10 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
-const { spawn } = require('child_process');
+// We no longer need child_process.spawn for sorting
+// const { spawn } = require('child_process');
+//const fetchPkg = require('node-fetch'); // if you installed node-fetch
+// (If using Node 18’s built-in fetch, you can omit `require('node-fetch')`)
 
 let mainWindow;
 
@@ -45,113 +47,66 @@ ipcMain.handle('open-folder', async () => {
 });
 
 ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt }) => {
-  return new Promise((resolve, reject) => {
-    // 1) Build the payload object
+  try {
+    // 1) Build the payload
     const payload = { folderPath, imagePaths, prompt };
 
-    // 2) Write payload to a temp file to avoid command-line length limits
-    const tmpDir = os.tmpdir();
-    const fileName = `embed_payload_${Date.now()}.json`;
-    const tempPath = path.join(tmpDir, fileName);
-    fs.writeFileSync(tempPath, JSON.stringify(payload), 'utf8');
-
-    // 3) Spawn Python process, passing the temp file path instead of raw JSON
-    const scriptPath = path.join(__dirname, '..', 'embed_sorter.py');
-    const pyProcess = spawn('python', [scriptPath, tempPath]);
-
-    let stdoutData = '';
-    let stderrData = '';
-
-    pyProcess.stdout.on('data', (chunk) => {
-      stdoutData += chunk.toString();
-    });
-    pyProcess.stderr.on('data', (chunk) => {
-      stderrData += chunk.toString();
+    // 2) POST to our local FastAPI server
+    const response = await fetch("http://127.0.0.1:8000/sort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
 
-    pyProcess.on('close', (code) => {
-      // 4) Clean up the temp file
-      try {
-        fs.unlinkSync(tempPath);
-      } catch (e) {
-        // ignore if delete fails
-      }
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Server error ${response.status}: ${text}`);
+    }
 
-      if (code !== 0) {
-        console.error(`[main] embed_sorter.py exited with code ${code}`);
-        console.error(stderrData);
-        reject(new Error(`embed_sorter.py failed: ${stderrData}`));
-        return;
-      }
-      try {
-        // Parse the JSON array from stdoutData
-        const sortedPaths = JSON.parse(stdoutData);
-        resolve(sortedPaths);
-      } catch (err) {
-        console.error('[main] Failed to parse JSON from Python:', err, stdoutData);
-        reject(err);
-      }
-    });
-  });
+    const json = await response.json();
+    // The server returns { sortedPaths: [ … ] }
+    return json.sortedPaths;
+  } catch (err) {
+    console.error("[main] Error calling sort API:", err);
+    throw err;
+  }
 });
 
 ipcMain.handle('apply-renames', async (event, { folderPath, sortedPaths }) => {
   /**
-   * We assume:
-   *   - folderPath is the directory containing all images.
-   *   - sortedPaths is an array of absolute paths in desired order.
-   * We will rename each file to "NN_originalName.ext", where NN is 01, 02, … (one-based).
-   * If the "name" part (without extension) is extremely long, we truncate it to at most 100 characters.
-   *
-   * If the target name already exists, we do NOT append "_dup"—we simply skip renaming that file.
+   * (Leave your existing rename logic here—unchanged.)
    */
   try {
-    const MAX_NAME_LEN = 100; // maximum length for “name only” portion
-
+    const MAX_NAME_LEN = 100;
     for (let i = 0; i < sortedPaths.length; i++) {
       const oldFullPath = sortedPaths[i];
       const dir = path.dirname(oldFullPath);
-      let base = path.basename(oldFullPath); // e.g. "05_ReallyLongName...jpg"
-
-      // 1) Strip any existing numeric prefix "NN_"
+      let base = path.basename(oldFullPath);
       const prefixMatch = /^(\d+)_/.exec(base);
       if (prefixMatch) {
         base = base.substring(prefixMatch[0].length);
-        // e.g. from "05_LongFilename.jpg" → "LongFilename.jpg"
       }
-
-      // 2) Split off extension
-      const ext = path.extname(base);                // e.g. ".jpg"
-      const nameOnly = base.slice(0, -ext.length);   // e.g. "VeryLongFilename…"
-
-      // 3) Truncate nameOnly if it exceeds MAX_NAME_LEN
+      const ext = path.extname(base);
+      const nameOnly = base.slice(0, -ext.length);
       let truncatedName = nameOnly;
       if (nameOnly.length > MAX_NAME_LEN) {
         truncatedName = nameOnly.slice(0, MAX_NAME_LEN);
       }
-
-      // 4) Build the new base: zero-padded prefix + "_" + truncatedName + ext
-      const prefix = String(i + 1).padStart(2, '0');   // "01", "02", …
+      const prefix = String(i + 1).padStart(2, '0');
       const newBase = `${prefix}_${truncatedName}${ext}`;
       const newFullPath = path.join(dir, newBase);
 
-      // 5) Only attempt rename if oldFullPath differs from newFullPath
       if (oldFullPath !== newFullPath) {
         if (fs.existsSync(newFullPath)) {
-          // Skip renaming entirely if target already exists.
-          // We leave sortedPaths[i] pointing to newFullPath (the existing file).
           sortedPaths[i] = newFullPath;
         } else {
-          // Safe to rename
           fs.renameSync(oldFullPath, newFullPath);
           sortedPaths[i] = newFullPath;
         }
       } else {
-        // oldFullPath === newFullPath, no change needed
         sortedPaths[i] = newFullPath;
       }
     }
-
     return true;
   } catch (err) {
     console.error('[main] Error during file renaming:', err);
