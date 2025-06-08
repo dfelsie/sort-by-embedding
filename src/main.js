@@ -30,6 +30,19 @@ app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
 // ---------------- IPC ----------------
 
+
+ipcMain.handle('concept-sort', async (event, { imagePaths, dimension, orderStart, orderEnd }) => {
+  const payload = { imagePaths, dimension, orderStart, orderEnd };
+  const resp = await fetch("http://127.0.0.1:8000/concept-sort", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  const { sortedPaths } = await resp.json();
+  return sortedPaths;
+});
+
 ipcMain.handle('open-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory']

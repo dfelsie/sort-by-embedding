@@ -9,113 +9,110 @@ from pydantic import BaseModel
 from typing import List
 from PIL import Image
 
-# ---------- 1) Define request/response schemas ----------
+# 1) Add LLM + VLM imports
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
+from llama_cpp import Llama
+from contextlib import asynccontextmanager
 
-class SortRequest(BaseModel):
-    folderPath: str
+# ---------- Request/Response Schemas ----------
+
+class ConceptSortRequest(BaseModel):
     imagePaths: List[str]
-    prompt: str
+    dimension: str
+    orderStart: str
+    orderEnd: str
 
-class SortResponse(BaseModel):
+class ConceptSortResponse(BaseModel):
     sortedPaths: List[str]
 
-# ---------- 2) FastAPI app ----------
+# ---------- Lifespan for startup/shutdown ----------
 
-app = FastAPI(title="EmbedSorterService")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup code ---
+    print("[lifespan] Loading models...")
 
-# ---------- 3) Your load_clip_model() exactly as you have it ----------
+    # Load VLM
+    app.state.vlm_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    app.state.vlm = Blip2ForConditionalGeneration.from_pretrained(
+        "Salesforce/blip2-opt-2.7b"
+    ).to("cuda")
 
-def load_clip_model():
-    # You can switch to a different CLIP variant if you want.
-    # Here we pick ViT-B-32 with the OpenAI weights.
-    model_name, pretrained = "ViT-B-32", "openai"
-    model, _, preprocess = open_clip.create_model_and_transforms(
-        model_name, pretrained=pretrained
+    # Load LLM
+    app.state.llm = Llama(
+        #model_path="models/llama3-8k.gguf",
+        model_path="C:\\Users\\DLF\\Documents\\newCode\\jobs2\\sort-by-embedding\\models\\llama3-8.k.gguf",
+        n_ctx=2048,
+        n_threads=4
     )
-    model.eval()
-    return model, preprocess
 
-# Global placeholders for model + preprocess + device
-CLIP_MODEL = None
-PREPROCESSOR = None
-DEVICE = None
+    # Choose device
+    app.state.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("[lifespan] Models loaded and ready.")
 
-# ---------- 4) Startup: load the model once ----------
+    yield
 
-@app.on_event("startup")
-async def startup_event():
-    global CLIP_MODEL, PREPROCESSOR, DEVICE
-    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    CLIP_MODEL,  PREPROCESSOR = load_clip_model()
-    CLIP_MODEL.to(DEVICE)
-    print(f"[server] Loaded CLIP model on {DEVICE}")
+    # --- Shutdown code (if you need to clean up) ---
+    print("[lifespan] Shutting down. Clearing models from memory.")
+    # You could do cleanup here if desired:
+    # del app.state.vlm, app.state.vlm_processor, app.state.llm
 
-# ---------- 5) Embedding helpers ----------
+# ---------- Create app with lifespan ----------
 
-def get_text_embedding(model, text, device):
-    tokenizer = open_clip.get_tokenizer("ViT-B-32")
-    text_tokens = tokenizer(text).to(device)
-    with torch.no_grad():
-        text_emb = model.encode_text(text_tokens)
-    text_emb = text_emb / text_emb.norm(dim=-1, keepdim=True)
-    return text_emb.cpu()
+app = FastAPI(lifespan=lifespan, title="EmbedSorterService")
 
-def get_image_embeddings(model, preprocess, img_paths, device, batch_size=16):
-    embs = []
-    paths_out = []
-    for i in range(0, len(img_paths), batch_size):
-        batch = img_paths[i : i + batch_size]
-        tensors = []
-        for p in batch:
-            img = Image.open(p).convert("RGB")
-            tensors.append(preprocess(img).unsqueeze(0))
-        batch_tensor = torch.cat(tensors, dim=0).to(device)
-        with torch.no_grad():
-            img_emb = model.encode_image(batch_tensor)
-        img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
-        embs.append(img_emb.cpu())
-        paths_out.extend(batch)
-    all_embs = torch.cat(embs, dim=0)
-    return paths_out, all_embs
+# ---------- Helper functions using app.state ----------
 
-def compute_scores(img_embs, text_emb, text_emb_b=None):
-    if text_emb_b is None:
-        scores = (img_embs @ text_emb.t()).squeeze(1)
-    else:
-        scores = (img_embs @ text_emb.t()).squeeze(1) - (img_embs @ text_emb_b.t()).squeeze(1)
-    return scores
+def generate_tags(image_paths: List[str]) -> List[str]:
+    tags = []
+    vlm = app.state.vlm
+    processor = app.state.vlm_processor
+    device = app.state.device
 
-# ---------- 6) The /sort endpoint ----------
+    for p in image_paths:
+        img = Image.open(p).convert("RGB")
+        inputs = processor(images=img, return_tensors="pt").to(device)
+        prompt = "Describe the main subject of this image in one to three words."
+        outputs = vlm.generate(**inputs, max_new_tokens=10, do_sample=False)
+        tag = processor.decode(outputs[0], skip_special_tokens=True).strip()
+        tags.append(tag)
+    return tags
 
-@app.post("/sort", response_model=SortResponse)
-async def sort_by_prompt(req: SortRequest):
+def sort_tags_by_dimension(tags: List[str], dimension: str, start: str, end: str) -> List[str]:
+    llm = app.state.llm
+    items = ", ".join(tags)
+    llm_prompt = f"""
+You are a sorting expert.
+Sort the following items based on the dimension of {dimension}.
+List them from {start} to {end}.
+Respond ONLY with the sorted, comma-separated list.
+Items: {items}
+"""
+    resp = llm(prompt=llm_prompt, max_tokens=256, stop=["\\n"])
+    sorted_tags = [t.strip() for t in resp["choices"][0]["text"].split(",")]
+    return sorted_tags
+
+# ---------- Endpoint ----------
+
+@app.post("/concept-sort", response_model=ConceptSortResponse)
+async def concept_sort(req: ConceptSortRequest):
     if not req.imagePaths:
-        raise HTTPException(status_code=400, detail="No imagePaths provided.")
+        raise HTTPException(400, "No imagePaths provided")
 
-    # 1) Embed the prompt
-    parts = req.prompt.lower().split(" to ")
-    if len(parts) == 2:
-        a, b = parts
-        text_emb_a = get_text_embedding(CLIP_MODEL, a, DEVICE).to(DEVICE)
-        text_emb_b = get_text_embedding(CLIP_MODEL, b, DEVICE).to(DEVICE)
-    else:
-        text_emb_a = get_text_embedding(CLIP_MODEL, req.prompt, DEVICE).to(DEVICE)
-        text_emb_b = None
+    tags = generate_tags(req.imagePaths)
+    sorted_tags = sort_tags_by_dimension(tags, req.dimension, req.orderStart, req.orderEnd)
 
-    # 2) Embed the images
-    abs_paths, img_embs = get_image_embeddings(
-        CLIP_MODEL, PREPROCESSOR, req.imagePaths, DEVICE
-    )
+    tag_to_paths = {}
+    for path, tag in zip(req.imagePaths, tags):
+        tag_to_paths.setdefault(tag, []).append(path)
 
-    # 3) Compute scores and sort
-    scores = compute_scores(img_embs, text_emb_a, text_emb_b)
-    pairs = list(zip(abs_paths, scores.tolist()))
-    pairs.sort(key=lambda x: x[1], reverse=True)
-    sorted_paths = [p for p, _ in pairs]
+    sorted_paths = []
+    for tag in sorted_tags:
+        sorted_paths.extend(tag_to_paths.get(tag, []))
 
-    return SortResponse(sortedPaths=sorted_paths)
+    return ConceptSortResponse(sortedPaths=sorted_paths)
 
-# ---------- 7) Run with uvicorn if invoked directly ----------
+# ---------- Run with Uvicorn ----------
 
 if __name__ == "__main__":
     import uvicorn
