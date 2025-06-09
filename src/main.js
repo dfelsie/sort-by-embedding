@@ -85,7 +85,7 @@ ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt 
     const payload = { folderPath, imagePaths, prompt };
 
     // 2) POST to our local FastAPI server
-    const response = await fetch("http://127.0.0.1:8000/sort", {
+    const response = await fetch("http://127.0.0.1:8000/sort-by-clip", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
