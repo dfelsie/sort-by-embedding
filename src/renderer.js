@@ -31,7 +31,6 @@ function showPrompt() {
     }
 
     isModalOpen = true;
-    console.log('showPrompt called');
 
     // Get the original input element and its parent
     const originalInput = document.getElementById('promptInput');
@@ -60,14 +59,11 @@ function showPrompt() {
     setTimeout(() => {
       newInput.focus();
       newInput.select(); // Also try to select
-      console.log('New input focused and selected');
     }, 150);
 
     function globalKeyHandler(e) {
       // Only handle if modal is open and new input is focused
       if (!isModalOpen || document.activeElement !== newInput) return;
-
-      console.log('Global key pressed:', e.key);
 
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -81,11 +77,9 @@ function showPrompt() {
         // Handle single character input manually
         e.preventDefault();
         newInput.value += e.key;
-        console.log('Manually added character, new value:', newInput.value);
       } else if (e.key === 'Backspace') {
         e.preventDefault();
         newInput.value = newInput.value.slice(0, -1);
-        console.log('Manually removed character, new value:', newInput.value);
       }
     }
 
@@ -101,7 +95,6 @@ function showPrompt() {
     }
 
     function cleanup() {
-      console.log('Cleaning up');
       isModalOpen = false;
       document.removeEventListener('keydown', globalKeyHandler);
       promptOk.removeEventListener('click', handleOk);
@@ -137,7 +130,6 @@ function renderThumbnails(imagePaths) {
     const div = document.createElement('div');
     div.classList.add('thumb-container');
     const img = document.createElement('img');
-    console.log("absPath: ",absPath)
     img.src = `file://${absPath}`;
     img.alt = '';
     div.appendChild(img);
@@ -148,8 +140,6 @@ function renderThumbnails(imagePaths) {
 /** “Choose Folder” button handler */
 btnChooseFolder.addEventListener('click', async () => {
   const result = await window.electronAPI.openFolder();
-
-  console.log(result,"res", JSON.parse(JSON.stringify(result)))
   if (result.canceled) {
     return;
   }
@@ -303,7 +293,6 @@ const normalized1 = oldPath.includes('/')
   }
 
   // 3) Re-render thumbnails (force-clear then render)
-  console.log('[renderer] Now rendering:', currentImagePaths);
   renderThumbnails([]);
   setTimeout(() => renderThumbnails(currentImagePaths), 10);
 
