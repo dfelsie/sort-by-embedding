@@ -6,7 +6,6 @@ let currentImagePaths = [];
 const btnChooseFolder = document.getElementById('btnChooseFolder');
 const txtFolderPath   = document.getElementById('txtFolderPath');
 const btnSortPrompt   = document.getElementById('btnSortPrompt');
-const btnSortConcept   = document.getElementById('btnSortConcept');
 const btnSortGemini   = document.getElementById('btnSortGemini');
 const gridContainer   = document.getElementById('thumbnail-grid');
 
@@ -158,7 +157,6 @@ btnChooseFolder.addEventListener('click', async () => {
   currentImagePaths = result.imagePaths;
   txtFolderPath.value = currentFolder;
   btnSortPrompt.disabled = currentImagePaths.length === 0;
-  btnSortConcept.disabled = currentImagePaths.length === 0;
   btnSortGemini.disabled = currentImagePaths.length === 0;
   renderThumbnails(currentImagePaths);
 });
@@ -322,50 +320,6 @@ catch (err) {
 }
 
 );
-btnSortConcept.addEventListener('click', async () => {
-  if (!currentFolder || currentImagePaths.length === 0) return;
 
-  // 1) Ask for the three pieces: dimension / start / end
-  const dimension = await showPrompt();
-  if (!dimension) return;
-
-  const orderStart = await showPrompt();
-  if (!orderStart) return;
-
-  const orderEnd = await showPrompt();
-  if (!orderEnd) return;
-
-  btnSortConcept.innerText = 'Sorting…';
-  btnSortConcept.disabled = true;
-
-  try {
-    // Send to your new conceptSort IPC
-    const sortedPaths = await window.electronAPI.conceptSort({
-      imagePaths: currentImagePaths,
-      dimension,
-      orderStart,
-      orderEnd
-    });
-
-    if (!Array.isArray(sortedPaths)) {
-      throw new Error('conceptSort did not return an array');
-    }
-
-    // (Optionally skip the rename prompt for concept sort,
-    //  since renaming files by content-tag is unusual. If you
-    //  want the same rename logic, you can copy from above.)
-    currentImagePaths = sortedPaths;
-
-    // Now re-render in one shot
-    renderThumbnails([]);
-    setTimeout(() => renderThumbnails(currentImagePaths), 10);
-  } catch (err) {
-    console.error('Error during concept sort:', err);
-    alert('An error occurred while sorting by concept. See console for details.');
-  } finally {
-    btnSortConcept.innerText = 'Sort by Concept…';
-    btnSortConcept.disabled = false;
-  }
-});
 
 
