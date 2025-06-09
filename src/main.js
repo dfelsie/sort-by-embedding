@@ -30,12 +30,12 @@ app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
 // ---------------- IPC ----------------
 
-ipcMain.handle('sort-with-gemini', async (_, { imagePaths, dimension, orderStart, orderEnd }) => {
+ipcMain.handle('sort-with-gemini', async (_, { imagePaths, prompt }) => {
+  console.log(prompt,"prompt")
   const res = await fetch('http://127.0.0.1:8000/quick-sort', {
     method: 'POST',
     headers: { 'Content-Type':'application/json' },
-    body: JSON.stringify({ imagePaths, dimension, orderStart, orderEnd })
-  });
+      body: JSON.stringify({ imagePaths, prompt })  });
   if (!res.ok) throw new Error(await res.text());
   const { sortedPaths } = await res.json();
   return sortedPaths;

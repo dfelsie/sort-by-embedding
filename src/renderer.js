@@ -7,6 +7,7 @@ const btnChooseFolder = document.getElementById('btnChooseFolder');
 const txtFolderPath   = document.getElementById('txtFolderPath');
 const btnSortPrompt   = document.getElementById('btnSortPrompt');
 const btnSortConcept   = document.getElementById('btnSortConcept');
+const btnSortGemini   = document.getElementById('btnSortGemini');
 const gridContainer   = document.getElementById('thumbnail-grid');
 
 // Modal elements
@@ -158,6 +159,7 @@ btnChooseFolder.addEventListener('click', async () => {
   txtFolderPath.value = currentFolder;
   btnSortPrompt.disabled = currentImagePaths.length === 0;
   btnSortConcept.disabled = currentImagePaths.length === 0;
+  btnSortGemini.disabled = currentImagePaths.length === 0;
   renderThumbnails(currentImagePaths);
 });
 
@@ -183,6 +185,41 @@ function normalizeSlashes(str) {
 
 /** “Sort by Prompt” button handler */
 // src/renderer.js
+
+btnSortGemini.addEventListener('click', async () => {
+  if (!currentFolder || currentImagePaths.length === 0) return;
+
+  // Ask the user for the Gemini sorting prompt
+  const geminiPrompt = await showPrompt();
+  if (!geminiPrompt) return;
+
+  btnSortGemini.innerText = 'Sorting…';
+  btnSortGemini.disabled = true;
+
+  try {
+    // Invoke the new IPC you exposed in preload.js (e.g. 'sort-by-gemini')
+    const sortedPaths = await window.electronAPI.sortWithGemini({
+      folderPath: currentFolder,
+      imagePaths: currentImagePaths,
+      prompt: geminiPrompt
+    });
+
+    if (!Array.isArray(sortedPaths)) {
+      throw new Error('sortByGemini did not return an array');
+    }
+
+    // Update and re-render
+    currentImagePaths = sortedPaths;
+    renderThumbnails([]);                        // clear grid
+    setTimeout(() => renderThumbnails(currentImagePaths), 10);
+  } catch (err) {
+    console.error('Error during Gemini sort:', err);
+    alert('An error occurred while sorting with Gemini. Check console for details.');
+  } finally {
+    btnSortGemini.innerText = 'Sort by Gemini';
+    btnSortGemini.disabled = false;
+  }
+});
 
 btnSortPrompt.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
