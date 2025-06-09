@@ -30,6 +30,16 @@ app.on('activate', () => { if (mainWindow === null) createWindow(); });
 
 // ---------------- IPC ----------------
 
+ipcMain.handle('sort-with-gemini', async (_, { imagePaths, dimension, orderStart, orderEnd }) => {
+  const res = await fetch('http://127.0.0.1:8000/quick-sort', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({ imagePaths, dimension, orderStart, orderEnd })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const { sortedPaths } = await res.json();
+  return sortedPaths;
+});
 
 ipcMain.handle('concept-sort', async (event, { imagePaths, dimension, orderStart, orderEnd }) => {
   const payload = { imagePaths, dimension, orderStart, orderEnd };
@@ -44,19 +54,29 @@ ipcMain.handle('concept-sort', async (event, { imagePaths, dimension, orderStart
 });
 
 ipcMain.handle('open-folder', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory']
+  const res = await dialog.showOpenDialog(mainWindow, { properties:['openDirectory'] });
+  if (res.canceled) return { canceled: true };
+  const folderPath = res.filePaths[0];
+  const files = fs.readdirSync(folderPath).filter(f=>{
+    const e = path.extname(f).toLowerCase();
+    return ['.png','.jpg','.jpeg','.bmp','.gif','.webp'].includes(e);
   });
-  if (result.canceled) {
-    return { canceled: true };
-  }
-  const folderPath = result.filePaths[0];
-  const allFiles = fs.readdirSync(folderPath).filter(fname => {
-    const ext = path.extname(fname).toLowerCase();
-    return ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'].includes(ext);
+  return {
+    canceled:false,
+    folderPath,
+    imagePaths: files.map(f=> path.join(folderPath,f))
+  };
+});
+
+ipcMain.handle('one-shot-sort', async (_, { imagePaths, dimension, orderStart, orderEnd }) => {
+  const res = await fetch('http://127.0.0.1:8000/one-shot-sort', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ imagePaths, dimension, orderStart, orderEnd })
   });
-  const imagePaths = allFiles.map(fname => path.join(folderPath, fname));
-  return { canceled: false, folderPath, imagePaths };
+  if (!res.ok) throw new Error(await res.text());
+  const { sortedPaths } = await res.json();
+  return sortedPaths;
 });
 
 ipcMain.handle('sort-by-prompt', async (event, { folderPath, imagePaths, prompt }) => {

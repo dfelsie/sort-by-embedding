@@ -4,3 +4,5 @@ venv311/*
 .venv311/*
 models/*
 *.pyc
+
+.env
