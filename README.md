@@ -7,9 +7,6 @@ This desktop application uses the power of AI to sort your local image files usi
 
 This project combines a Python/FastAPI backend for AI processing with an Electron frontend for a seamless user interface.
 
-![Screenshot of the Image Sorter App](https://i.imgur.com/KqYqg9h.png)
-*(Feel free to replace this with a real screenshot of your application)*
-
 ## Features
 
 -   **Local-First Sorting:** The main "Sort by Prompt" feature works offline without any external services.
