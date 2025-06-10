@@ -55,8 +55,8 @@ async def startup_event():
     print("[server] Configuring Gemini...")
     try:
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        GEMINI_MODEL = genai.GenerativeModel('gemini-1.5-flash-latest')
-        print("[server] Gemini model 'gemini-1.5-flash-latest' configured.")
+        GEMINI_MODEL = genai.GenerativeModel('gemini-2.0-flash')
+        print("[server] Gemini model 'gemini-2.0-flash' configured.")
     except KeyError:
         print("[server] WARNING: GEMINI_API_KEY not found. The /sort-by-gemini endpoint will fail.")
     except Exception as e:
