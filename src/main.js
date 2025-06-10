@@ -31,7 +31,6 @@ app.on('activate', () => { if (mainWindow === null) createWindow(); });
 // ---------------- IPC ----------------
 
 ipcMain.handle('sort-with-gemini', async (_, { imagePaths, prompt }) => {
-  console.log(prompt,"prompt")
   const res = await fetch('http://127.0.0.1:8000/quick-sort', {
     method: 'POST',
     headers: { 'Content-Type':'application/json' },

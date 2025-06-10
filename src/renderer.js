@@ -177,7 +177,7 @@ function normalizeSlashes(str) {
 btnSortGemini.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
 
-  // Ask the user for the Gemini sorting prompt
+  // 1) Ask the user for the Gemini sorting prompt
   const geminiPrompt = await showPrompt();
   if (!geminiPrompt) return;
 
@@ -185,7 +185,7 @@ btnSortGemini.addEventListener('click', async () => {
   btnSortGemini.disabled = true;
 
   try {
-    // Invoke the new IPC you exposed in preload.js (e.g. 'sort-by-gemini')
+    // 2) Invoke the IPC for Gemini sort
     const sortedPaths = await window.electronAPI.sortWithGemini({
       folderPath: currentFolder,
       imagePaths: currentImagePaths,
@@ -193,13 +193,50 @@ btnSortGemini.addEventListener('click', async () => {
     });
 
     if (!Array.isArray(sortedPaths)) {
-      throw new Error('sortByGemini did not return an array');
+      throw new Error('sortWithGemini did not return an array');
     }
 
-    // Update and re-render
-    currentImagePaths = sortedPaths;
-    renderThumbnails([]);                        // clear grid
+    // 3) Ask user if they want to rename the files on disk
+    const doRename = confirm('Gemini sort complete. Rename files on disk?');
+    let finalPaths = sortedPaths;
+
+    if (doRename) {
+      // Apply the renames via your main process
+      await window.electronAPI.applyRenames({
+        folderPath: currentFolder,
+        sortedPaths
+      });
+
+      // Build the newly renamed absolute paths
+      const MAX_NAME_LEN = 100;
+      finalPaths = sortedPaths.map((oldPath, index) => {
+        // normalize slashes & strip old numeric prefix
+        const normalized = oldPath.replace(/\//g, '\\').replace(/\\\\+/g, '\\');
+        const lastSlash = normalized.lastIndexOf('\\');
+        const dir = normalized.slice(0, lastSlash + 1);
+        let filename = normalized.slice(lastSlash + 1).replace(/^\d+_/, '');
+
+        // split name & ext
+        const dotIdx = filename.lastIndexOf('.');
+        let nameOnly = dotIdx >= 0 ? filename.slice(0, dotIdx) : filename;
+        const ext = dotIdx >= 0 ? filename.slice(dotIdx) : '';
+
+        // truncate if too long
+        if (nameOnly.length > MAX_NAME_LEN) {
+          nameOnly = nameOnly.slice(0, MAX_NAME_LEN);
+        }
+
+        // zero-padded prefix + "_" + name + ext
+        const prefix = String(index + 1).padStart(2, '0');
+        return `${dir}${prefix}_${nameOnly}${ext}`;
+      });
+    }
+
+    // 4) Update and re-render
+    currentImagePaths = finalPaths;
+    renderThumbnails([]);
     setTimeout(() => renderThumbnails(currentImagePaths), 10);
+
   } catch (err) {
     console.error('Error during Gemini sort:', err);
     alert('An error occurred while sorting with Gemini. Check console for details.');
