@@ -65,11 +65,11 @@ async def startup_event():
     print(f"[server] Using device: {DEVICE}")
 
     # --- Configure Gemini ---
-    print("[server] Configuring Gemini...")
+    #print("[server] Configuring Gemini...")
     try:
-        genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-        GEMINI_MODEL = genai.GenerativeModel('gemini-2.0-flash')
-        print("[server] Gemini 'gemini-2.0-flash' configured.")
+        #genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+        #GEMINI_MODEL = genai.GenerativeModel('gemini-2.0-flash')
+        print("[server] Gemini 'gemini-2.0-flash' NOT configured.")
     except KeyError:
         print("[server] WARNING: GEMINI_API_KEY not set; /quick-sort disabled.")
     except Exception as e:
