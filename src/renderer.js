@@ -6,7 +6,7 @@ let currentImagePaths = [];
 const btnChooseFolder = document.getElementById('btnChooseFolder');
 const txtFolderPath   = document.getElementById('txtFolderPath');
 const btnSortPrompt   = document.getElementById('btnSortPrompt');
-const btnSortGemini   = document.getElementById('btnSortGemini');
+//const btnSortGemini   = document.getElementById('btnSortGemini');
 const gridContainer   = document.getElementById('thumbnail-grid');
 
 // Modal elements
@@ -147,7 +147,7 @@ btnChooseFolder.addEventListener('click', async () => {
   currentImagePaths = result.imagePaths;
   txtFolderPath.value = currentFolder;
   btnSortPrompt.disabled = currentImagePaths.length === 0;
-  btnSortGemini.disabled = currentImagePaths.length === 0;
+  //btnSortGemini.disabled = currentImagePaths.length === 0;
   renderThumbnails(currentImagePaths);
 });
 
@@ -174,7 +174,7 @@ function normalizeSlashes(str) {
 /** “Sort by Prompt” button handler */
 // src/renderer.js
 
-btnSortGemini.addEventListener('click', async () => {
+/* btnSortGemini.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
 
   // 1) Ask the user for the Gemini sorting prompt
@@ -244,7 +244,7 @@ btnSortGemini.addEventListener('click', async () => {
     btnSortGemini.innerText = 'Sort by Gemini';
     btnSortGemini.disabled = false;
   }
-});
+}); */
 
 btnSortPrompt.addEventListener('click', async () => {
   if (!currentFolder || currentImagePaths.length === 0) return;
