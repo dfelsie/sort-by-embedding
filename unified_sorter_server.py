@@ -1,11 +1,8 @@
-# unified_sorter_server.py
-
 import os
 import torch
 import open_clip
 import google.generativeai as genai
 import PIL.Image
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
@@ -18,10 +15,18 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+def load_clip_model():
+    model_name, pretrained = "ViT-B-32", "openai"
+    model, _, preprocess = open_clip.create_model_and_transforms(
+        model_name, pretrained=pretrained
+    )
+    model.eval()
+    return model, preprocess
+
 # --- Pydantic Models for API Requests/Responses ---
 
 class GeminiSortRequest(BaseModel):
-    imagePaths: list[str]
+    imagePaths: List[str]
     prompt: str  # e.g., "Sort from hottest to coldest"
 
 class ClipSortRequest(BaseModel):
@@ -29,7 +34,7 @@ class ClipSortRequest(BaseModel):
     prompt: str  # e.g., "A picture of a sunny day"
 
 class SortResponse(BaseModel):
-    sortedPaths: List[str] # Both endpoints will use this response model
+    sortedPaths: List[str]  # Used by both endpoints
 
 # --- Global Placeholders for AI Models ---
 
@@ -58,24 +63,19 @@ async def startup_event():
         GEMINI_MODEL = genai.GenerativeModel('gemini-2.0-flash')
         print("[server] Gemini model 'gemini-2.0-flash' configured.")
     except KeyError:
-        print("[server] WARNING: GEMINI_API_KEY not found. The /sort-by-gemini endpoint will fail.")
+        print("[server] WARNING: GEMINI_API_KEY not found; /quick-sort will fail.")
     except Exception as e:
-        print(f"[server] WARNING: An error occurred during Gemini configuration: {e}")
-
+        print(f"[server] WARNING: Error configuring Gemini: {e}")
 
     # --- Load OpenCLIP ---
     print("[server] Loading OpenCLIP model...")
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     try:
-        DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-        model_name, pretrained = "ViT-B-32", "openai"
-        CLIP_MODEL, _, PREPROCESSOR = open_clip.create_model_and_transforms(
-            model_name, pretrained=pretrained
-        )
+        CLIP_MODEL, PREPROCESSOR = load_clip_model()
         CLIP_MODEL.to(DEVICE)
-        CLIP_MODEL.eval()
-        print(f"[server] OpenCLIP model '{model_name}' loaded on {DEVICE}.")
+        print(f"[server] OpenCLIP model loaded on {DEVICE}.")
     except Exception as e:
-        print(f"[server] WARNING: An error occurred while loading the CLIP model: {e}")
+        print(f"[server] WARNING: Error loading CLIP model: {e}")
 
 
 # ==============================================================================
@@ -85,48 +85,65 @@ async def startup_event():
 @app.post("/quick-sort", response_model=SortResponse)
 async def sort_by_gemini(req: GeminiSortRequest):
     if GEMINI_MODEL is None:
-        raise HTTPException(503, "Gemini service is not available. Check server configuration.")
+        raise HTTPException(503, "Gemini service not available.")
     if not req.imagePaths:
-        raise HTTPException(400, "No imagePaths provided")
+        raise HTTPException(400, "No imagePaths provided.")
     if not req.prompt:
-        raise HTTPException(400, "An empty prompt was provided")
+        raise HTTPException(400, "An empty prompt was provided.")
 
     num_images = len(req.imagePaths)
-    sort_tool = { "function_declarations": [{"name": "return_sorted_indices","description": "Returns the new order of images as a list of indices","parameters": {"type": "object","properties": {"sorted": {"type": "array","description": "The list of original indices in their new sorted order.","items": {"type": "integer"}}},"required": ["sorted"]}}]}
+    sort_tool = {
+        "function_declarations": [
+            {
+                "name": "return_sorted_indices",
+                "description": "Returns the new order of images as a list of indices",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "sorted": {
+                            "type": "array",
+                            "description": "List of original indices in new order",
+                            "items": {"type": "integer"}
+                        }
+                    },
+                    "required": ["sorted"]
+                }
+            }
+        ]
+    }
 
+    # System + user instructions
     system_instruction = (
-        f"You are an expert image analysis assistant. Your task is to sort the user-provided "
-        f"images according to their instructions. You must return the result by calling the "
-        f"`return_sorted_indices` function.\n\n"
-        f"**CRITICAL INSTRUCTION:** The 'sorted' array you return **MUST** contain the exact same number of items "
-        f"as the number of images provided. You have been given {num_images} images, so you **MUST** return "
-        f"exactly {num_images} unique integers in the 'sorted' array. Each index from 0 to {num_images - 1} "
-        f"must appear exactly once."
+        f"You are an expert image analysis assistant. Sort the {num_images} provided images "
+        f"according to the user's prompt. Return by calling `return_sorted_indices(sorted=[...])`."
     )
-    user_prompt = f"Please sort these {num_images} images based on the following criteria: '{req.prompt}'"
-    prompt_parts = [system_instruction, user_prompt]
+    user_prompt = f"Sort these {num_images} images by: '{req.prompt}'"
 
+    prompt_parts = [system_instruction, user_prompt]
+    # Attach images directly to prompt
     for path in req.imagePaths:
         try:
             prompt_parts.append(PIL.Image.open(path))
         except Exception as e:
-            raise HTTPException(400, f"Could not process image at {path}: {e}")
+            raise HTTPException(400, f"Could not open image at {path}: {e}")
 
     try:
         resp = GEMINI_MODEL.generate_content(
-            prompt_parts, tools=sort_tool, tool_config={"function_calling_config": "ANY"}
+            prompt_parts,
+            tools=sort_tool,
+            tool_config={"function_calling_config": "ANY"}
         )
-        function_call = resp.candidates[0].content.parts[0].function_call
-        idxs = function_call.args.get("sorted", [])
+        func_call = resp.candidates[0].content.parts[0].function_call
+        idxs = func_call.args.get("sorted", [])
 
-        # Validation
+        # Validate
         if len(idxs) != num_images or len(set(idxs)) != num_images:
-            raise ValueError(f"Model returned an invalid index list. Expected {num_images} unique items.")
+            raise ValueError("Gemini returned invalid indices.")
 
-        sorted_paths = [req.imagePaths[int(i)] for i in idxs]
+        sorted_paths = [req.imagePaths[i] for i in idxs]
 
     except Exception as e:
-        raise HTTPException(500, f"An error occurred with the Gemini API or processing: {e}")
+        raise HTTPException(500, f"Gemini API error: {e}")
 
     return SortResponse(sortedPaths=sorted_paths)
 
@@ -135,55 +152,63 @@ async def sort_by_gemini(req: GeminiSortRequest):
 # 4. CLIP-BASED SORTING ENDPOINT
 # ==============================================================================
 
-# --- CLIP Helper Functions ---
-def get_clip_text_embedding(text, device):
+# Embedding helpers
+def get_text_embedding(model, text, device):
     tokenizer = open_clip.get_tokenizer("ViT-B-32")
+    tokens = tokenizer(text).to(device)
     with torch.no_grad():
-        text_emb = CLIP_MODEL.encode_text(tokenizer([text]).to(device))
-    text_emb /= text_emb.norm(dim=-1, keepdim=True)
-    return text_emb.cpu() #<-- FIX: Ensure it's moved to the CPU
+        emb = model.encode_text(tokens)
+    emb = emb / emb.norm(dim=-1, keepdim=True)
+    return emb.cpu()
 
-def get_clip_image_embeddings(img_paths, device, batch_size=16):
-    embs = []
-    for i in range(0, len(img_paths), batch_size):
-        batch_paths = img_paths[i: i + batch_size]
-        try:
-            tensors = [PREPROCESSOR(PIL.Image.open(p).convert("RGB")).unsqueeze(0) for p in batch_paths]
-            batch_tensor = torch.cat(tensors).to(device)
-            with torch.no_grad():
-                img_emb = CLIP_MODEL.encode_image(batch_tensor)
-            img_emb /= img_emb.norm(dim=-1, keepdim=True)
-            embs.append(img_emb.cpu())
-        except Exception as e:
-            print(f"Warning: Failed to process a batch starting with {batch_paths[0]}. Error: {e}")
-    return torch.cat(embs) if embs else torch.Tensor([])
+def get_image_embeddings(model, preprocess, paths, device, batch_size=16):
+    embs, out_paths = [], []
+    for i in range(0, len(paths), batch_size):
+        batch = paths[i : i + batch_size]
+        imgs = []
+        for p in batch:
+            img = PIL.Image.open(p).convert("RGB")
+            imgs.append(preprocess(img).unsqueeze(0))
+            out_paths.append(p)
+        tensor = torch.cat(imgs, dim=0).to(device)
+        with torch.no_grad():
+            img_emb = model.encode_image(tensor)
+        img_emb = img_emb / img_emb.norm(dim=-1, keepdim=True)
+        embs.append(img_emb.cpu())
+    return out_paths, torch.cat(embs, dim=0)
 
-# --- CLIP Endpoint ---
+def compute_scores(img_embs, text_emb_a, text_emb_b=None):
+    if text_emb_b is None:
+        return (img_embs @ text_emb_a.t()).squeeze(1)
+    return (img_embs @ text_emb_a.t()).squeeze(1) - (img_embs @ text_emb_b.t()).squeeze(1)
+
 @app.post("/sort-by-clip", response_model=SortResponse)
 async def sort_by_clip(req: ClipSortRequest):
     if CLIP_MODEL is None:
-        raise HTTPException(503, "CLIP service is not available. Check server configuration.")
+        raise HTTPException(503, "CLIP service not available.")
     if not req.imagePaths:
         raise HTTPException(400, "No imagePaths provided.")
     if not req.prompt:
         raise HTTPException(400, "An empty prompt was provided.")
 
-    try:
-        # 1. Embed the prompt text
-        text_emb = get_clip_text_embedding(req.prompt, DEVICE)
+    # 1) Split on " to " for differential sort
+    parts = req.prompt.lower().split(" to ")
+    if len(parts) == 2:
+        text_emb_a = get_text_embedding(CLIP_MODEL, parts[0], DEVICE).to(DEVICE)
+        text_emb_b = get_text_embedding(CLIP_MODEL, parts[1], DEVICE).to(DEVICE)
+    else:
+        text_emb_a = get_text_embedding(CLIP_MODEL, req.prompt, DEVICE).to(DEVICE)
+        text_emb_b = None
 
-        # 2. Embed all images
-        img_embs = get_clip_image_embeddings(req.imagePaths, DEVICE)
-        if img_embs.nelement() == 0:
-            return SortResponse(sortedPaths=[])
+    # 2) Embed images
+    abs_paths, img_embs = get_image_embeddings(
+        CLIP_MODEL, PREPROCESSOR, req.imagePaths, DEVICE
+    )
 
-        # 3. Compute cosine similarity scores and sort
-        scores = (img_embs @ text_emb.T).squeeze()
-        pairs = sorted(zip(req.imagePaths, scores.tolist()), key=lambda x: x[1], reverse=True)
-        sorted_paths = [p for p, _ in pairs]
-
-    except Exception as e:
-        raise HTTPException(500, f"An error occurred during CLIP processing: {e}")
+    # 3) Score & sort
+    scores = compute_scores(img_embs, text_emb_a, text_emb_b)
+    pairs = sorted(zip(abs_paths, scores.tolist()), key=lambda x: x[1], reverse=True)
+    sorted_paths = [p for p, _ in pairs]
 
     return SortResponse(sortedPaths=sorted_paths)
 
