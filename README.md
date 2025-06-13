@@ -1,106 +1,71 @@
-# Sort by Embedding: An AI-Powered Image Sorter
+# Sort by Embedding: An AI‑Powered Image Sorter
+**100% Local · Offline · Privacy‑Focused**
 
-This desktop application uses the power of AI to sort your local image files using natural language. It offers two powerful ways to organize your photos:
+Organize your photos and graphics using natural‑language prompts powered by a state‑of‑the‑art CLIP model. This desktop application runs entirely on your machine—no Internet connection or API keys required after setup.
+🚀 Features
 
-1.  **Sort by Prompt (Local):** This primary mode runs entirely on your machine, no internet connection or API key needed. It uses a state-of-the-art CLIP model to find images that are most similar to a text description (e.g., "a sunny day at the beach").
-2.  **Sort by Gemini (Cloud - Optional):** For more complex tasks, this mode uses Google's Gemini Pro Vision model to understand and execute sophisticated sorting commands (e.g., "from most cluttered to most minimalist" or "arrange by time of day"). This feature is optional and requires a free Google AI API key.
+    100% Local & Offline
+    All AI processing happens on your computer; your images never leave your system.
 
-This project combines a Python/FastAPI backend for AI processing with an Electron frontend for a seamless user interface.
+    No API Keys Required
+    Completely free and self‑contained—no external services or subscriptions.
 
-## Features
+    Natural Language Commands
 
--   **Local-First Sorting:** The main "Sort by Prompt" feature works offline without any external services.
--   **Optional Cloud Power:** Enhance sorting capabilities with Google Gemini for complex commands.
--   **Natural Language Commands:** Describe how you want to sort using plain English.
--   **Privacy Focused:** Your images are only sent to an external API when you explicitly use the "Sort by Gemini" feature.
--   **One-Click Start:** A simple launch script starts the backend server and the Electron app simultaneously for easy development.
+        Simple: “cats” or “a person smiling”
 
-## Prerequisites
+        Directional: “cats to dogs” or “close‑up to wide‑angle portraits”
 
-Before you begin, you will need the following installed on your system:
+    Privacy Focused
+    Your files stay private and local—no cloud uploads.
 
--   **Python** (version 3.9 or higher recommended)
--   **Node.js** and **npm** (LTS version recommended)
+    One‑Click Development Start
+    A single launcher script sets up everything (Python + Node.js) and starts both backend and Electron frontend.
 
----
+🎯 Prerequisites
 
-## 🛑 Optional: Getting a Gemini API Key
+    Python 3.10+
 
-To enable the powerful **"Sort by Gemini"** feature, you need a personal API key from Google AI Studio. The "Sort by Prompt" feature works without this.
+    Node.js & npm (LTS recommended)
 
-1.  Go to **[Google AI Studio](https://aistudio.google.com/app/apikey)**.
-2.  Click **"Create API key in new project"**.
-3.  Copy the generated API key. You will need it in the setup steps below.
+    (Optional, for GPU Acceleration) NVIDIA CUDA‑compatible drivers
 
----
+⚙️ Setup & Running the Application
+1. Clone the Repository
 
-## Setup and Installation
-
-Follow these steps to get the application running on your local machine.
-
-### 1. Clone the Repository
-
-```bash
 git clone https://github.com/dfelsie/sort-by-embedding.git
 cd sort-by-embedding
-```
 
-### 2. Set Up the Python Backend
+2. Run the Launcher
 
-This step sets up the local AI models and the server.
+From the project root, launch the “one‑click” setup:
 
-```bash
-# Create a Python virtual environment
-python -m venv venv
+python full_launcher.py
 
-# Activate the virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
+    First Run:
 
-# Install the required Python packages
-# (Note: This may take some time as it includes PyTorch)
-pip install -r requirements.txt
-```
-*(If a `requirements.txt` file doesn't exist, you can create one with `pip freeze > requirements.txt` after installing the necessary packages: `fastapi`, `uvicorn`, `torch`, `open_clip`, `google-generativeai`, `python-dotenv`)*
+        Dependency Check: Verifies Python & Node.js packages
 
-### 3. Configure Your Gemini API Key (Optional)
+        Initial Download (~15 minutes): Installs PyTorch (~2.5 GB) and CLIP models
 
-If you want to use the "Sort by Gemini" feature, you must provide the API key you generated.
+        Disk Usage: ~7 GB in a local .venv311 folder
 
--   In the root directory of the project, create a new file named `.env`.
--   Open the `.env` file and add the following line, pasting your secret key after the equals sign:
+    Subsequent Runs:
+    Skips installation and launches the Python server + Electron app immediately.
 
-    ```env
-    GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    ```
--   Save the file. If you leave this file out, only the local sorting will work.
+To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal.
+📖 How to Use
 
-**Warning:** Never commit your `.env` file or your API key to version control. The included `.gitignore` file should prevent this.
+    Choose Folder
+    Click Choose Folder to select the directory containing your images.
 
-### 4. Set Up the Electron Frontend
+    Sort by Prompt
 
-This step installs the dependencies for the user interface.
+        Enter a description (e.g., a snowy mountain or portrait to landscape)
 
-```bash
-npm install
-```
+        Click Sort by Prompt (CLIP)…
 
-## Running the Application
+    (Optional) Rename Files
+    After sorting, confirm if you’d like to rename files on disk to match the new order.
 
-Once the setup is complete, a custom Python script handles starting both the backend server and the Electron app for you.
-
-From the root directory of the project, run:
-
-```bash
-python launch.py
-```
-
-This will start both processes. To stop everything, press `Ctrl+C` in the terminal where you ran the launch script.
-
-## How to Use the App
-
-1.  **Select a Folder:** Click the "Select Folder" button to choose a directory of images.
-2.  **Sort by Prompt (Local Model):** This feature works offline and does not require an API key. Enter a descriptive prompt (e.g., "a person smiling" or "winter snow") and click "Sort by Prompt". The images will reorder to show those most similar to the prompt first.
-3.  **Sort by Gemini (Cloud Model):** If you have configured your API key, you can use this for advanced sorting. Enter a more complex command (e.g., "from oldest photo to newest" or "by how much blue color is in the picture") and click "Sort by Gemini".
+Enjoy a seamless, private, and intuitive way to sort your images—powered entirely by your local machine!
