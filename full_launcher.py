@@ -71,7 +71,7 @@ def check_and_install_python_deps():
 
         # --- Install PyTorch using the special command ---
         print("\nInstalling PyTorch (this may take a while)...")
-        #subprocess.run(PYTORCH_INSTALL_COMMAND, check=True)
+        subprocess.run(PYTORCH_INSTALL_COMMAND, check=True)
         print("PyTorch installed successfully.")
 
         # --- Install other dependencies from requirements.txt ---
@@ -128,8 +128,8 @@ if __name__ == "__main__":
         print(f"-> Launching Python server...")
         python_proc = subprocess.Popen(python_server_cmd, cwd=PROJECT_DIR)
 
-        print("   (Waiting 5 seconds for server to spin up...)")
-        time.sleep(5)
+        print("   (Waiting 8 seconds for server to spin up...)")
+        time.sleep(8)
 
         print(f"-> Launching Electron app...")
         electron_proc = subprocess.Popen(electron_app_cmd, cwd=PROJECT_DIR, shell=(sys.platform == "win32"))
