@@ -22,7 +22,7 @@ Organize your photos and graphics using natural-language prompts powered by a st
 - **One-Click Development Start**  
   A single launcher script sets up everything (Python + Node.js) and starts both backend and Electron frontend.
 
-![App Screenshot](https://github.com/user-attachments/assets/5903ca4c-72c5-4d39-8db2-b8c910a25e7f)
+https://github.com/user-attachments/assets/5903ca4c-72c5-4d39-8db2-b8c910a25e7f
 
 ## 🎯 Prerequisites
 
