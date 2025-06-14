@@ -104,3 +104,6 @@ This will start both processes. To stop everything, press `Ctrl+C` in the termin
 1.  **Select a Folder:** Click the "Select Folder" button to choose a directory of images.
 2.  **Sort by Prompt (Local Model):** This feature works offline and does not require an API key. Enter a descriptive prompt (e.g., "a person smiling" or "winter snow") and click "Sort by Prompt". The images will reorder to show those most similar to the prompt first.
 3.  **Sort by Gemini (Cloud Model):** If you have configured your API key, you can use this for advanced sorting. Enter a more complex command (e.g., "from oldest photo to newest" or "by how much blue color is in the picture") and click "Sort by Gemini".
+
+
+list of models in the venv under open_clip model configs.

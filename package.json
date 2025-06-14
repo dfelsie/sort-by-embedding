@@ -1,17 +1,27 @@
 {
-  "name": "sort-by-embedding",
+  "name": "unified-sorter-app",
   "version": "1.0.0",
-  "description": "Electron app to sort images by CLIP embedding prompted ordering",
-  "main": "src/main.js",
+  "description": "An app for sorting images.",
+  "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "build": "electron-builder"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
     "electron": "^36.4.0",
     "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.example.unifiedsorter",
+    "productName": "Unified Sorter",
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/api_server.exe",
+        "to": "api/api_server.exe"
+      }
+    ]
   }
 }
