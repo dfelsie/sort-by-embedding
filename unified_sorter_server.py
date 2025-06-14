@@ -8,14 +8,12 @@ import PIL.Image
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
-from dotenv import load_dotenv
 
 # ==============================================================================
 # 1. SETUP & CONFIGURATION
 # ==============================================================================
 
 # Load environment variables from .env file
-load_dotenv()
 
 def load_clip_model():
     """
