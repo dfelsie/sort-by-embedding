@@ -70,9 +70,9 @@ def check_and_install_python_deps():
             print(f"Virtual environment created at: {VENV_DIR}")
 
         # --- Install PyTorch using the special command ---
-        print("\nInstalling PyTorch (this may take a while)...")
-        subprocess.run(PYTORCH_INSTALL_COMMAND, check=True)
-        print("PyTorch installed successfully.")
+        #print("\nInstalling PyTorch (this may take a while)...")
+        #subprocess.run(PYTORCH_INSTALL_COMMAND, check=True)
+        #print("PyTorch installed successfully.")
 
         # --- Install other dependencies from requirements.txt ---
         if os.path.exists(REQUIREMENTS_FILE):
