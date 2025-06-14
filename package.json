@@ -2,6 +2,7 @@
   "name": "unified-sorter-app",
   "version": "1.0.0",
   "description": "An app for sorting images.",
+  "author": "DLF",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -12,16 +13,26 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "com.example.unifiedsorter",
+    "appId": "com.yourname.unifiedsorter",
     "productName": "Unified Sorter",
     "files": [
-      "**/*"
-    ],
+      "main.js",
+      "preload.js",
+      "renderer.js",
+      "index.html",
+      "splash.html"    ],
     "extraResources": [
       {
         "from": "dist/api_server.exe",
         "to": "api/api_server.exe"
       }
-    ]
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
