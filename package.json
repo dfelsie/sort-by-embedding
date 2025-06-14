@@ -6,33 +6,47 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
   },
   "devDependencies": {
     "electron": "^36.4.0",
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "com.yourname.unifiedsorter",
+    "appId": "com.dlf.unifiedsorter",
     "productName": "Unified Sorter",
+    "directories": {
+      "output": "release"
+    },
     "files": [
-      "main.js",
-      "preload.js",
-      "renderer.js",
-      "index.html",
-      "splash.html"    ],
+      "**/*",
+      "!node_modules/**/*",
+      "!release/**/*",
+      "!dist/**/*",
+      "dist/api_server.exe"
+    ],
     "extraResources": [
       {
         "from": "dist/api_server.exe",
         "to": "api/api_server.exe"
       }
     ],
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
+"win": {
+  "target": "nsis",
+  "icon": "icon.ico",
+  "requestedExecutionLevel": "requireAdministrator"
+},
+"nsis": {
+  "oneClick": false,
+  "allowToChangeInstallationDirectory": true,
+  "createDesktopShortcut": true,
+  "createStartMenuShortcut": true,
+  "runAfterFinish": false,
+  "allowElevation": true,
+  "installerIcon": "icon.ico",
+  "uninstallerIcon": "icon.ico",
+  "include": "installer.nsh"
+}
   }
 }
