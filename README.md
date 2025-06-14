@@ -1,6 +1,8 @@
 # Sort by Embedding: An AI‑Powered Image Sorter
 **100% Local · Offline · Privacy‑Focused**
 
+
+
 Organize your photos and graphics using natural‑language prompts powered by a state‑of‑the‑art CLIP model. This desktop application runs entirely on your machine—no Internet connection or API keys required after setup.
 🚀 Features
 
@@ -21,6 +23,9 @@ Organize your photos and graphics using natural‑language prompts powered by a 
 
     One‑Click Development Start
     A single launcher script sets up everything (Python + Node.js) and starts both backend and Electron frontend.
+
+https://github.com/user-attachments/assets/5903ca4c-72c5-4d39-8db2-b8c910a25e7f
+
 
 🎯 Prerequisites
 
@@ -69,3 +74,8 @@ To stop the app, press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the terminal.
     After sorting, confirm if you’d like to rename files on disk to match the new order.
 
 Enjoy a seamless, private, and intuitive way to sort your images—powered entirely by your local machine!
+
+(Wrote about making this here: https://dfels.substack.com/p/writing-an-image-sorter-app-with)
+
+
+
