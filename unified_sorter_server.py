@@ -3,7 +3,6 @@
 import os
 import torch
 import open_clip
-import google.generativeai as genai
 import PIL.Image
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
