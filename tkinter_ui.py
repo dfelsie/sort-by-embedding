@@ -6,19 +6,21 @@ import queue
 import requests
 import subprocess
 import sys
+import multiprocessing
+import shutil
 from PIL import Image, ImageTk
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 # --- Configuration ---
 THUMBNAIL_SIZE = (128, 128)
-SERVER_URL = "http://127.0.0.1:8000"
+SERVER_URL = "http://127.0.0.1:8001"
 VALID_EXTENSIONS = ['.png','.jpg','.jpeg','.bmp','.gif','.webp']
 PADDING = 5
 MAX_WORKER_THREADS = 8  # Adjust based on your CPU cores
 
-# --- Global variable to hold the server process ---
-server_process = None
+# --- Global variables ---
+server_process = None  # Keep for compatibility but won't be used
 
 class ImageSorterApp:
     def __init__(self, root):
@@ -43,12 +45,22 @@ class ImageSorterApp:
 
     def on_closing(self):
         """ When the main window is closed, terminate the server and exit. """
-        global server_process
-        if server_process:
-            print("[UI] Terminating server process...")
-            server_process.terminate()
-            server_process.wait()
+        # Clean up thumbnail cache
+        self.cleanup_thumbnail_cache()
         self.root.destroy()
+        # Server will terminate when main thread exits since it's daemon
+
+    def cleanup_thumbnail_cache(self):
+        """ Delete the thumbnail cache directory if it exists. """
+        if hasattr(self, 'current_folder') and self.current_folder:
+            cache_dir = os.path.join(self.current_folder, ".thumbnails_cache")
+            if os.path.exists(cache_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(cache_dir)
+                    print(f"[Cache] Cleaned up thumbnail cache: {cache_dir}")
+                except Exception as e:
+                    print(f"[Cache] Failed to clean up cache: {e}")
 
     def setup_ui(self):
         controls_frame = ttk.Frame(self.root, padding="10")
@@ -87,6 +99,10 @@ class ImageSorterApp:
         # Cancel any ongoing loading
         self.loading_cancelled = True
         time.sleep(0.1) # Give thread a moment to see the flag
+
+        # Clean up previous cache if switching folders
+        if hasattr(self, 'current_folder') and self.current_folder and self.current_folder != folder_path:
+            self.cleanup_thumbnail_cache()
 
         self.current_folder = folder_path
         self.folder_path_var.set(self.current_folder)
@@ -310,27 +326,39 @@ def monitor_server(process, splash_root):
             splash_root.after(0, launch_main_app, splash_root)
             break
 
-if __name__ == "__main__":
-    splash = create_splash_screen()
+def start_server_in_thread():
+    """Start the server in a separate thread instead of subprocess."""
     try:
-        print("[Launcher] Starting Uvicorn server as a subprocess...")
-        creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
-        server_process = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "unified_sorter_server:app", "--host", "127.0.0.1", "--port", "8000"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            creationflags=creation_flags
-        )
-        print(f"[Launcher] Server process started with PID: {server_process.pid}")
-    except FileNotFoundError:
-        messagebox.showerror("Error", "Could not find 'uvicorn'. Make sure it is installed.")
-        splash.destroy()
-        sys.exit(1)
+        import uvicorn
+        # Import your server module
+        import unified_sorter_server
 
-    monitor_thread = threading.Thread(
-        target=monitor_server,
-        args=(server_process, splash),
-        daemon=True
-    )
-    monitor_thread.start()
-    splash.mainloop()
+        # Run uvicorn in this thread
+        uvicorn.run(
+            unified_sorter_server.app,
+            host="127.0.0.1",
+            port=8001,
+            log_level="info"
+        )
+    except Exception as e:
+        print(f"[Server Thread] Error starting server: {e}")
+
+def main():
+    """Main function that handles both script and exe execution."""
+    splash = create_splash_screen()
+
+    # Start server in a background thread instead of subprocess
+    server_thread = threading.Thread(target=start_server_in_thread, daemon=True)
+    server_thread.start()
+
+    # Give server a moment to start
+    time.sleep(2)
+
+    # Launch main app
+    launch_main_app(splash)
+
+# CRITICAL: This prevents infinite exe spawning
+if __name__ == "__main__":
+    # Freeze support for exe compilation
+    multiprocessing.freeze_support()
+    main()
